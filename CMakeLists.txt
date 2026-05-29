@@ -13,17 +13,34 @@ else()
   set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
 endif()
 
+# LLVM
 find_package(LLVM REQUIRED CONFIG)
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 include_directories(${LLVM_INCLUDE_DIRS})
-include_directories(external/unity/src)
 add_definitions(${LLVM_DEFINITIONS})
 link_directories(${LLVM_LIBRARY_DIRS})
 
+# Unity
+include_directories(external/unity/src)
+
+# Rocky
 add_executable(rocky src/main.c src/debug.c src/lexer.c src/parser.c src/jit.c)
 target_include_directories(rocky PUBLIC include)
 
+# Raylib
+set(BUILD_SHARED_LIBS ON CACHE BOOL "Build raylib as a shared library" FORCE)
+set(FETCHCONTENT_QUIET OFF)
+include(FetchContent)
+FetchContent_Declare(
+    raylib
+    URL https://github.com/raysan5/raylib/archive/refs/tags/6.0.tar.gz
+)
+set(BUILD_EXAMPLES OFF CACHE BOOL "Build Raylib examples" FORCE)
+set(BUILD_TESTING OFF CACHE BOOL "Build Raylib tests" FORCE)
+FetchContent_MakeAvailable(raylib)
+
+# Copy over DLLs if required
 if(WIN32)
   target_link_libraries(rocky LLVM-C)
 
@@ -35,13 +52,20 @@ if(WIN32)
           $<TARGET_FILE_DIR:rocky>
   )
 
+  add_custom_command(
+      TARGET rocky POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      $<TARGET_FILE:raylib>
+      $<TARGET_FILE_DIR:rocky>
+  )
 else()
   llvm_map_components_to_libnames(llvm_libs core support native target mc asmprinter orcjit executionengine)
   target_link_libraries(rocky ${llvm_libs})
 endif()
 
 
-#Testing Part
+
+# Testing Part
 set(FAKE_PARSER_BIN_DIR "${CMAKE_BINARY_DIR}/tools")
 
 add_executable(fake_parser tools/fake_parser.c)
