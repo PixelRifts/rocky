@@ -46,11 +46,16 @@ void jit_init(JITContext* ctx) {
         return;
     }
     
+    
     LLVMOrcExecutionSessionRef session = LLVMOrcLLJITGetExecutionSession(ctx->jit);
     LLVMOrcExecutionSessionSetErrorReporter(session, jit_error_report, NULL);
     
     ctx->jit_dylib = LLVMOrcLLJITGetMainJITDylib(ctx->jit);
     ctx->should_create_module = true;
+}
+
+void jit_dylib_load(JITContext* ctx, const char* dylib_name) {
+    LLVMLoadLibraryPermanently(dylib_name);
 }
 
 // @Temporary Adds printnum
@@ -98,4 +103,60 @@ void_func* jit_lookup_function(JITContext* ctx, char* function_name) {
 void jit_free(JITContext* ctx) {
     LLVMOrcDisposeLLJIT(ctx->jit);
     LLVMOrcDisposeThreadSafeContext(ctx->orc_threadsafe_ctx);
+}
+
+
+//- Temporary Raylib-specific stuff for testing
+void jit_add_raylib_functions(JITContext* ctx) {
+    jit_verify_module_mutable(ctx);
+    LLVMModuleRef module = ctx->current_module.handle;
+    
+    //~~~ All the declarations ~~~
+    
+    // Basic Types
+    LLVMTypeRef i8_type = LLVMInt8TypeInContext(ctx->ctx);
+    LLVMTypeRef i32_type = LLVMInt32TypeInContext(ctx->ctx);
+    LLVMTypeRef void_type = LLVMVoidTypeInContext(ctx->ctx);
+    LLVMTypeRef char_ptr_type = LLVMPointerType(i8_type, 0);
+    
+    // Color struct: { unsigned char r, g, b, a }
+    LLVMTypeRef color_fields[] = { i8_type, i8_type, i8_type, i8_type };
+    LLVMTypeRef color_type = LLVMStructTypeInContext(ctx->ctx, color_fields, 4, 0);
+    
+    // void InitWindow(int width, int height, const char *title)
+    LLVMTypeRef init_window_args[] = { i32_type, i32_type, char_ptr_type };
+    LLVMTypeRef init_window_type = LLVMFunctionType(void_type, init_window_args, 3, 0);
+    LLVMAddFunction(module, "InitWindow", init_window_type);
+    
+    // void SetTargetFPS(int fps)
+    LLVMTypeRef set_target_fps_args[] = { i32_type };
+    LLVMTypeRef set_target_fps_type = LLVMFunctionType(void_type, set_target_fps_args, 1, 0);
+    LLVMAddFunction(module, "SetTargetFPS", set_target_fps_type);
+    
+    // int WindowShouldClose(void)
+    // Raylib returns C bool, but we'll use i32
+    LLVMTypeRef window_should_close_type = LLVMFunctionType(i32_type, NULL, 0, 0);
+    LLVMAddFunction(module, "WindowShouldClose", window_should_close_type);
+    
+    // void BeginDrawing(void)
+    LLVMTypeRef begin_drawing_type = LLVMFunctionType(void_type, NULL, 0, 0);
+    LLVMAddFunction(module, "BeginDrawing", begin_drawing_type);
+    
+    // void ClearBackground(Color color)
+    LLVMTypeRef clear_background_args[] = { color_type };
+    LLVMTypeRef clear_background_type = LLVMFunctionType(void_type, clear_background_args, 1, 0);
+    LLVMAddFunction(module, "ClearBackground", clear_background_type);
+    
+    // void DrawText(const char *text, int posX, int posY, int fontSize, Color color)
+    LLVMTypeRef draw_text_args[] = { char_ptr_type, i32_type, i32_type, i32_type, color_type };
+    LLVMTypeRef draw_text_type = LLVMFunctionType(void_type, draw_text_args, 5, 0);
+    LLVMAddFunction(module, "DrawText", draw_text_type);
+    
+    // void EndDrawing(void)
+    LLVMTypeRef end_drawing_type = LLVMFunctionType(void_type, NULL, 0, 0);
+    LLVMAddFunction(module, "EndDrawing", end_drawing_type);
+    
+    // void CloseWindow(void)
+    LLVMTypeRef close_window_type = LLVMFunctionType(void_type, NULL, 0, 0);
+    LLVMAddFunction(module, "CloseWindow", close_window_type);
 }

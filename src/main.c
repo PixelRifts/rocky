@@ -14,6 +14,8 @@ int main() {
     JITContext jit = {0};
     jit_init(&jit);
     
+    jit_dylib_load(&jit, "raylib.dll");
+    jit_add_raylib_functions(&jit);
     jit_add_dummy_functions(&jit);
     jit_bake(&jit);
     

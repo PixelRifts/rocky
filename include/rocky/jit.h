@@ -7,6 +7,7 @@
 #include <llvm-c/Types.h>
 #include <llvm-c/Target.h>
 #include <llvm-c/TargetMachine.h>
+#include <llvm-c/Support.h>
 #include <llvm-c/Orc.h>
 #include <llvm-c/LLJIT.h>
 
@@ -37,8 +38,13 @@ struct JITContext {
 
 void       jit_init(JITContext* ctx);
 void       jit_free(JITContext* ctx);
+void       jit_dylib_load(JITContext* ctx, const char* dylib_name);
 void       jit_add_dummy_functions(JITContext* ctx);
 void       jit_bake(JITContext* ctx);
 void_func* jit_lookup_function(JITContext* ctx, char* function_name);
+
+//- Temporary Raylib-specific stuff for testing
+void jit_add_raylib_functions(JITContext* ctx);
+
 
 #endif //JIT_H
