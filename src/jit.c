@@ -12,6 +12,7 @@ static void jit_verify_module_mutable(JITContext* ctx) {
         snprintf(namebuf, MODULE_NAME_MAX, "rocky_module_%d", ctx->created_module_count);
         
         ctx->current_module.handle = LLVMModuleCreateWithNameInContext((const char*) namebuf, ctx->ctx);
+        LLVMSetTarget(ctx->current_module.handle, LLVMGetDefaultTargetTriple());
         ctx->current_module.threadsafe_handle = LLVMOrcCreateNewThreadSafeModule(ctx->current_module.handle, ctx->orc_threadsafe_ctx);
         
         ctx->created_module_count += 1;
@@ -126,37 +127,121 @@ void jit_add_raylib_functions(JITContext* ctx) {
     // void InitWindow(int width, int height, const char *title)
     LLVMTypeRef init_window_args[] = { i32_type, i32_type, char_ptr_type };
     LLVMTypeRef init_window_type = LLVMFunctionType(void_type, init_window_args, 3, 0);
-    LLVMAddFunction(module, "InitWindow", init_window_type);
+    LLVMValueRef init_window_fn = LLVMAddFunction(module, "InitWindow", init_window_type);
     
     // void SetTargetFPS(int fps)
     LLVMTypeRef set_target_fps_args[] = { i32_type };
     LLVMTypeRef set_target_fps_type = LLVMFunctionType(void_type, set_target_fps_args, 1, 0);
-    LLVMAddFunction(module, "SetTargetFPS", set_target_fps_type);
+    LLVMValueRef set_target_fps_fn = LLVMAddFunction(module, "SetTargetFPS", set_target_fps_type);
     
     // int WindowShouldClose(void)
     // Raylib returns C bool, but we'll use i32
     LLVMTypeRef window_should_close_type = LLVMFunctionType(i32_type, NULL, 0, 0);
-    LLVMAddFunction(module, "WindowShouldClose", window_should_close_type);
+    LLVMValueRef window_should_close_fn = LLVMAddFunction(module, "WindowShouldClose", window_should_close_type);
     
     // void BeginDrawing(void)
     LLVMTypeRef begin_drawing_type = LLVMFunctionType(void_type, NULL, 0, 0);
-    LLVMAddFunction(module, "BeginDrawing", begin_drawing_type);
+    LLVMValueRef begin_drawing_fn = LLVMAddFunction(module, "BeginDrawing", begin_drawing_type);
     
     // void ClearBackground(Color color)
     LLVMTypeRef clear_background_args[] = { color_type };
     LLVMTypeRef clear_background_type = LLVMFunctionType(void_type, clear_background_args, 1, 0);
-    LLVMAddFunction(module, "ClearBackground", clear_background_type);
+    LLVMValueRef clear_background_fn = LLVMAddFunction(module, "ClearBackground", clear_background_type);
     
     // void DrawText(const char *text, int posX, int posY, int fontSize, Color color)
     LLVMTypeRef draw_text_args[] = { char_ptr_type, i32_type, i32_type, i32_type, color_type };
     LLVMTypeRef draw_text_type = LLVMFunctionType(void_type, draw_text_args, 5, 0);
-    LLVMAddFunction(module, "DrawText", draw_text_type);
+    LLVMValueRef draw_text_fn = LLVMAddFunction(module, "DrawText", draw_text_type);
     
     // void EndDrawing(void)
     LLVMTypeRef end_drawing_type = LLVMFunctionType(void_type, NULL, 0, 0);
-    LLVMAddFunction(module, "EndDrawing", end_drawing_type);
+    LLVMValueRef end_drawing_fn = LLVMAddFunction(module, "EndDrawing", end_drawing_type);
     
     // void CloseWindow(void)
     LLVMTypeRef close_window_type = LLVMFunctionType(void_type, NULL, 0, 0);
-    LLVMAddFunction(module, "CloseWindow", close_window_type);
+    LLVMValueRef close_window_fn = LLVMAddFunction(module, "CloseWindow", close_window_type);
+    
+    
+    //~~~ Example Function ~~~
+    LLVMBuilderRef builder = LLVMCreateBuilderInContext(ctx->ctx);
+    
+    // Basic blocks and decls
+    LLVMTypeRef  run_fn_type = LLVMFunctionType(void_type, NULL, 0, 0);
+    LLVMValueRef run_fn      = LLVMAddFunction(module, "run_raylib_example", run_fn_type);
+    
+    LLVMBasicBlockRef entry_bb     = LLVMAppendBasicBlockInContext(ctx->ctx, run_fn, "entry");
+    LLVMBasicBlockRef loop_cond_bb = LLVMAppendBasicBlockInContext(ctx->ctx, run_fn, "loop_cond");
+    LLVMBasicBlockRef loop_body_bb = LLVMAppendBasicBlockInContext(ctx->ctx, run_fn, "loop_body");
+    LLVMBasicBlockRef loop_exit_bb = LLVMAppendBasicBlockInContext(ctx->ctx, run_fn, "loop_exit");
+    
+    LLVMValueRef raywhite_vals[] = {
+        LLVMConstInt(i8_type, 245, 0),
+        LLVMConstInt(i8_type, 245, 0),
+        LLVMConstInt(i8_type, 245, 0),
+        LLVMConstInt(i8_type, 255, 0),
+    };
+    LLVMValueRef color_raywhite = LLVMConstNamedStruct(color_type, raywhite_vals, 4);
+    
+    LLVMValueRef blue_vals[] = {
+        LLVMConstInt(i8_type,  50, 0),
+        LLVMConstInt(i8_type,  80, 0),
+        LLVMConstInt(i8_type, 200, 0),
+        LLVMConstInt(i8_type, 255, 0),
+    };
+    LLVMValueRef color_blue = LLVMConstNamedStruct(color_type, blue_vals, 4);
+    
+    // Entry BB
+    LLVMPositionBuilderAtEnd(builder, entry_bb);
+    
+    LLVMValueRef window_title = LLVMBuildGlobalStringPtr(builder, "Minimal Raylib Window", "window_title");
+    {
+        LLVMValueRef args[] = {
+            LLVMConstInt(i32_type, 800, 0),
+            LLVMConstInt(i32_type, 450, 0),
+            window_title,
+        };
+        LLVMBuildCall2(builder, init_window_type, init_window_fn, args, 3, "");
+    }
+    {
+        LLVMValueRef args[] = { LLVMConstInt(i32_type, 60, 0) };
+        LLVMBuildCall2(builder, set_target_fps_type, set_target_fps_fn, args, 1, "");
+    }
+    LLVMBuildBr(builder, loop_cond_bb);
+    
+    // Loop condition BB
+    LLVMPositionBuilderAtEnd(builder, loop_cond_bb);
+    
+    LLVMValueRef should_close = LLVMBuildCall2(builder, window_should_close_type, window_should_close_fn, NULL, 0, "should_close");
+    LLVMValueRef keep_going = LLVMBuildICmp(builder, LLVMIntEQ, should_close, LLVMConstInt(i32_type, 0, 0), "keep_going");
+    LLVMBuildCondBr(builder, keep_going, loop_body_bb, loop_exit_bb);
+    
+    // Loop body BB
+    LLVMPositionBuilderAtEnd(builder, loop_body_bb);
+    
+    LLVMBuildCall2(builder, begin_drawing_type, begin_drawing_fn, NULL, 0, "");
+    {
+        LLVMValueRef args[] = { color_raywhite };
+        LLVMBuildCall2(builder, clear_background_type, clear_background_fn, args, 1, "");
+    }
+    LLVMValueRef congrats_str = LLVMBuildGlobalStringPtr(builder, "Congrats! You created your first Raylib window.", "congrats_str");
+    {
+        LLVMValueRef args[] = {
+            congrats_str,
+            LLVMConstInt(i32_type, 190, 0),
+            LLVMConstInt(i32_type, 200, 0),
+            LLVMConstInt(i32_type,  20, 0),
+            color_blue,
+        };
+        LLVMBuildCall2(builder, draw_text_type, draw_text_fn, args, 5, "");
+    }
+    LLVMBuildCall2(builder, end_drawing_type, end_drawing_fn, NULL, 0, "");
+    LLVMBuildBr(builder, loop_cond_bb);
+    
+    // Loop exit BB
+    LLVMPositionBuilderAtEnd(builder, loop_exit_bb);
+    
+    LLVMBuildCall2(builder, close_window_type, close_window_fn, NULL, 0, "");
+    LLVMBuildRetVoid(builder);
+    
+    LLVMDisposeBuilder(builder);
 }

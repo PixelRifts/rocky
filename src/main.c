@@ -9,6 +9,7 @@
 #include <rocky/jit.h>
 
 typedef void printnum_fn(int p);
+typedef void raylib_example_fn(void);
 
 int main() {
     JITContext jit = {0};
@@ -23,6 +24,9 @@ int main() {
     fn(10);
     fn(20);
     fn(30);
+    
+    raylib_example_fn* raylib_example = (raylib_example_fn*) jit_lookup_function(&jit, "run_raylib_example");
+    raylib_example();
     
     jit_free(&jit);
     

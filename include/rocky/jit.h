@@ -47,4 +47,51 @@ void_func* jit_lookup_function(JITContext* ctx, char* function_name);
 void jit_add_raylib_functions(JITContext* ctx);
 
 
+/*
+ * -emit-llvm
+*
+*#include "raylib.h"
+*
+*int main(void) {
+    *  const int screenWidth = 800;
+    *  const int screenHeight = 450;
+    *  InitWindow(screenWidth, screenHeight, "Minimal Raylib Window");
+    *  SetTargetFPS(60);
+*
+    *  while (!WindowShouldClose())
+    *  {
+        *    BeginDrawing();
+            *    ClearBackground(RAYWHITE);
+            *    DrawText("Congrats! You created your first Raylib window.", 190, 200, 20, DARKGRAY);
+        *    EndDrawing();
+    *  }
+*
+    *  CloseWindow();
+    *  return 0;
+*}
+*/
+
+
+//   define void @run_raylib_example() {
+//   entry:
+//     call void @InitWindow(i32 800, i32 450, ptr @window_title)
+//     call void @SetTargetFPS(i32 60)
+//     br label %loop_cond
+//   loop_cond:
+//     %should_close = call i32 @WindowShouldClose()
+//     %keep_going   = icmp eq i32 %should_close, 0
+//     br i1 %keep_going, label %loop_body, label %loop_exit
+//   loop_body:
+//     call void @BeginDrawing()
+//     call void @ClearBackground({ i8, i8, i8, i8 } { 245, 245, 245, 255 })
+//     call void @DrawText(ptr @congrats_str, i32 190, i32 200, i32 20,
+//                         { i8, i8, i8, i8 } { 80, 80, 80, 255 })
+//     call void @EndDrawing()
+//     br label %loop_cond
+//   loop_exit:
+//     call void @CloseWindow()
+//     ret void
+//   }
+
+
 #endif //JIT_H
